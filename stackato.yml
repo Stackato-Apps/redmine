@@ -1,0 +1,14 @@
+name: redmine
+mem: 256M
+instances: 1
+framework:
+  type: buildpack
+services:
+  ${name}-db: mysql
+env:
+  REDMINE_LANG: en
+processes:
+  web: rails s thin
+hooks:
+  pre-staging:
+    - sudo apt-get update && sudo apt-get install -y libmagickcore-dev libmagickwand-dev
