@@ -12,3 +12,5 @@ processes:
 hooks:
   pre-staging:
     - sudo apt-get update && sudo apt-get install -y libmagickcore-dev libmagickwand-dev
+  post-staging:
+    - bundle exec rake config/initializers/secret_token.rb
