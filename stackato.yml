@@ -2,15 +2,18 @@ name: redmine
 mem: 256M
 instances: 1
 framework:
-  type: buildpack
+  type: rails3
+  runtime: ruby19
 services:
   ${name}-db: mysql
 env:
   REDMINE_LANG: en
 processes:
-  web: rails s thin
+  web: rails s thin -p $PORT
 hooks:
-  pre-staging:
-    - sudo apt-get update && sudo apt-get install -y libmagickcore-dev libmagickwand-dev
   post-staging:
     - bundle exec rake config/initializers/secret_token.rb
+requirements:
+  ubuntu:
+    - libmagickcore-dev
+    - libmagickwand-dev
