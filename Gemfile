@@ -1,8 +1,8 @@
 source 'https://rubygems.org'
 
+gem "rake", "0.9.2.2"
 gem "rails", "3.2.18"
-gem "rake", "~> 10.1.1"
-gem "jquery-rails", "~> 2.0.2"
+gem "cloudfoundry-jquery-rails"
 gem "coderay", "~> 1.1.0"
 gem "fastercsv", "~> 1.5.0", :platforms => [:mri_18, :mingw_18, :jruby]
 gem "builder", "3.0.0"
@@ -46,6 +46,7 @@ end
 gem "mysql2", "~> 0.3.11", :platforms => [:mri, :mingw]
 gem "activerecord-jdbcmysql-adapter", :platforms => :jruby
 
+=begin
 group :development do
   gem "rdoc", ">= 2.4.2"
   gem "yard"
@@ -59,6 +60,7 @@ group :test do
     gem "selenium-webdriver"
   end
 end
+=end
 
 local_gemfile = File.join(File.dirname(__FILE__), "Gemfile.local")
 if File.exists?(local_gemfile)
