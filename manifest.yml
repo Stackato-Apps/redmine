@@ -1,0 +1,23 @@
+applications:
+- name: redmine
+  framework:
+    name: rails3
+  instances: 1
+  mem: 256M
+  runtime: ruby19
+  services:
+    ${name}-db:
+      type: mysql
+  stackato:
+    env:
+      REDMINE_LANG:
+        default: en
+    hooks:
+      post-staging:
+      - bundle exec rake config/initializers/secret_token.rb
+    processes:
+      web: rails s thin -p $PORT
+    requirements:
+      ubuntu:
+      - libmagickcore-dev
+      - libmagickwand-dev
