@@ -67,6 +67,7 @@ class MailHandlerTest < ActiveSupport::TestCase
     # Email notification should be sent
     mail = ActionMailer::Base.deliveries.last
     assert_not_nil mail
+    assert mail.subject.include?("##{issue.id}")
     assert mail.subject.include?('New ticket on a given project')
   end
 
@@ -203,6 +204,14 @@ class MailHandlerTest < ActiveSupport::TestCase
     end
     assert issue.is_a?(Issue)
     assert_equal user, issue.assigned_to
+  end
+
+  def test_add_issue_should_set_default_start_date
+    with_settings :default_issue_start_date_to_creation_date => '1' do
+      issue = submit_email('ticket_with_cc.eml', :issue => {:project => 'ecookbook'})
+      assert issue.is_a?(Issue)
+      assert_equal Date.today, issue.start_date
+    end
   end
 
   def test_add_issue_with_cc
@@ -357,19 +366,21 @@ class MailHandlerTest < ActiveSupport::TestCase
   end
 
   def test_add_issue_with_invalid_attributes
-    issue = submit_email(
-              'ticket_with_invalid_attributes.eml',
-              :allow_override => 'tracker,category,priority'
-            )
-    assert issue.is_a?(Issue)
-    assert !issue.new_record?
-    issue.reload
-    assert_nil issue.assigned_to
-    assert_nil issue.start_date
-    assert_nil issue.due_date
-    assert_equal 0, issue.done_ratio
-    assert_equal 'Normal', issue.priority.to_s
-    assert issue.description.include?('Lorem ipsum dolor sit amet, consectetuer adipiscing elit.')
+    with_settings :default_issue_start_date_to_creation_date => '0' do
+      issue = submit_email(
+                'ticket_with_invalid_attributes.eml',
+                :allow_override => 'tracker,category,priority'
+              )
+      assert issue.is_a?(Issue)
+      assert !issue.new_record?
+      issue.reload
+      assert_nil issue.assigned_to
+      assert_nil issue.start_date
+      assert_nil issue.due_date
+      assert_equal 0, issue.done_ratio
+      assert_equal 'Normal', issue.priority.to_s
+      assert issue.description.include?('Lorem ipsum dolor sit amet, consectetuer adipiscing elit.')
+    end
   end
 
   def test_add_issue_with_invalid_project_should_be_assigned_to_default_project
@@ -529,6 +540,28 @@ class MailHandlerTest < ActiveSupport::TestCase
     assert_equal str, issue.subject
   end
 
+  def test_quoted_printable_utf8
+    issue = submit_email(
+              'quoted_printable_utf8.eml',
+              :issue => {:project => 'ecookbook'}
+            )
+    assert_kind_of Issue, issue
+    str = "Freundliche Gr\xc3\xbcsse"
+    str.force_encoding('UTF-8') if str.respond_to?(:force_encoding)
+    assert_equal str, issue.description
+  end
+
+  def test_gmail_iso8859_2
+    issue = submit_email(
+              'gmail-iso8859-2.eml',
+              :issue => {:project => 'ecookbook'}
+            )
+    assert_kind_of Issue, issue
+    str = "Na \xc5\xa1triku se su\xc5\xa1i \xc5\xa1osi\xc4\x87."
+    str.force_encoding('UTF-8') if str.respond_to?(:force_encoding)
+    assert issue.description.include?(str)
+  end
+
   def test_add_issue_with_japanese_subject
     issue = submit_email(
               'subject_japanese_1.eml',
@@ -611,6 +644,19 @@ class MailHandlerTest < ActiveSupport::TestCase
 
       assert_no_difference 'Issue.count' do
         assert_equal false, MailHandler.receive(raw), "email with #{header} header was not ignored"
+      end
+    end
+  end
+
+  test "should not ignore Auto-Submitted headers not defined in RFC3834" do
+    [
+      "Auto-Submitted: auto-forwarded"
+    ].each do |header|
+      raw = IO.read(File.join(FIXTURES_PATH, 'ticket_on_given_project.eml'))
+      raw = header + "\n" + raw
+
+      assert_difference 'Issue.count', 1 do
+        assert_not_nil MailHandler.receive(raw), "email with #{header} header was ignored"
       end
     end
   end
@@ -808,6 +854,20 @@ class MailHandlerTest < ActiveSupport::TestCase
     issue = submit_email('ticket_with_long_subject.eml')
     assert issue.is_a?(Issue)
     assert_equal issue.subject, 'New ticket on a given project with a very long subject line which exceeds 255 chars and should not be ignored but chopped off. And if the subject line is still not long enough, we just add more text. And more text. Wow, this is really annoying. Especially, if you have nothing to say...'[0,255]
+  end
+
+  def test_first_keyword_should_be_matched
+    issue = submit_email('ticket_with_duplicate_keyword.eml', :allow_override => 'priority')
+    assert issue.is_a?(Issue)
+    assert_equal 'High', issue.priority.name
+  end
+
+  def test_keyword_after_delimiter_should_be_ignored
+    with_settings :mail_handler_body_delimiters => "== DELIMITER ==" do
+      issue = submit_email('ticket_with_keyword_after_delimiter.eml', :allow_override => 'priority')
+      assert issue.is_a?(Issue)
+      assert_equal 'Normal', issue.priority.name
+    end
   end
 
   def test_new_user_from_attributes_should_return_valid_user
